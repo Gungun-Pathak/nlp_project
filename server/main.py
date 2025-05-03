@@ -28,6 +28,15 @@ CHROMA_INDEX_DIR = os.path.join(CACHE_DIR, "chroma_index")
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 
+from pymongo import MongoClient
+from datetime import datetime
+
+# Connect to local MongoDB (adjust URI for Atlas or other setups)
+client = MongoClient("mongodb://localhost:27017/")
+db = client["nlp_bot_db"]
+collection = db["query_logs"]
+
+
 
 def extract_text_from_pdf(pdf_file_path: str) -> str:
     """Extract text from a PDF file."""
@@ -204,15 +213,25 @@ def query():
 
         # Get the chat history (if provided)
         chat_history = data.get('chat_history', [])
-        
+
         # Call the RAG system to get the response
         response = generate_response_with_memory(query_input, rag_chain, chat_history)
-        
+
+        # Store in MongoDB
+        collection.insert_one({
+            "query": query_input,
+            "response": response,
+            "chat_history": chat_history,
+            "timestamp": datetime.utcnow()
+        })
+
         # Return the response in JSON format
         return jsonify({"response": response}), 200
+
     except Exception as e:
         print(f"Error handling query: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
 
 
 if __name__ == '__main__':
